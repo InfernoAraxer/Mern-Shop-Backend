@@ -1,5 +1,6 @@
 const mongoose = require('mongoose'); // Erase if already required
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 // Declares the Layout and attributes of the User
 var userSchema = new mongoose.Schema({
@@ -46,12 +47,18 @@ var userSchema = new mongoose.Schema({
     refreshToken: {
         type:String,
     },
+    passwordChangedAt: Date,
+    passwordResetToken: String,
+    passwordResetExpires: Date,
 }, {
     timestamps: true,
 });
 
 // Prior to saving the User, Password Hashing is done
 userSchema.pre('save', async function(next) {
+    if(!this.isModified('password')) {
+        next();
+    }
     const salt = await bcrypt.genSaltSync(10);
     this.password = await bcrypt.hash(this.password, salt);
 });
@@ -59,7 +66,14 @@ userSchema.pre('save', async function(next) {
 // Checks the passwords if the hashed passwords are correct (Creates Method for a User "class")
 userSchema.methods.isPasswordMatched = async function(enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
-}
+};
+userSchema.methods.createPasswordResetToken = async function () {
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    this.passwordResetToken=crypto.createHash('sha256').update(resetToken).digest("hex");
+    this.passwordResetExpires=Date.now() + 30 * 60 * 1000 // 10 minutes
+    return resetToken;
+};
+
 
 // Exports the model
 module.exports = mongoose.model('User', userSchema);

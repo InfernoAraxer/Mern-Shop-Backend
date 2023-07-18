@@ -38,3 +38,5 @@ app.use(errorHandler);
 app.listen (PORT, () => {
     console.log(`Server is running at PORT ${PORT}`);
 }) 
+
+// npm i bcrypt body-parser cloudinary cookie-parser cors dotenv express express-async-handler jsonwebtoken mongoose morgan multer nodemailer sharp sligify uniqid

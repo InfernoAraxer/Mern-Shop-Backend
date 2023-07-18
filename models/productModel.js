@@ -39,9 +39,7 @@ var productSchema = new mongoose.Schema({
         default: 0,
         // select: false, // To Hide this number from users
     },
-    images: {
-        type: Array,
-    },
+    images: [],
     color:{
         type: String,
         required: true,
@@ -64,4 +62,4 @@ var productSchema = new mongoose.Schema({
 );
 
 //Export the model
-module.exports = mongoose.model('products', productSchema, 'products');  
+module.exports = mongoose.model('Product', productSchema);  

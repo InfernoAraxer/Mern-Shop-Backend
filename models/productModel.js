@@ -39,11 +39,9 @@ var productSchema = new mongoose.Schema({
         default: 0,
         // select: false, // To Hide this number from users
     },
-    images: [],
-    color:{
-        type: String,
-        required: true,
-    },
+    images: [], // When creating a product with images, you have to add the public_id/asset_id to it so they are connected
+    color: [],
+    tags: [],
     ratings:[
         {
             star: Number,

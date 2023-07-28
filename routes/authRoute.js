@@ -1,5 +1,5 @@
 const express = require('express');
-const { createUser, loginUserCtrl, getallUsers, getaUser, deleteUser, updatedUser, blockUser, unblockUser, handleRefreshToken, logout, updatePassword, forgotPasswordToken, resetPassword, loginAdmin, getWishlist, saveAddress, userCart, getUserCart, emptyCart, applyCoupon, createOrder, getOrders, updateOrderStatus } = require('../controller/userCtrl');
+const { createUser, loginUserCtrl, getallUsers, getaUser, deleteUser, updatedUser, blockUser, unblockUser, handleRefreshToken, logout, updatePassword, forgotPasswordToken, resetPassword, loginAdmin, getWishlist, saveAddress, userCart, getUserCart, emptyCart, applyCoupon, createOrder, getAllOrders, updateOrderStatus, getOrders, getOrderByUserId } = require('../controller/userCtrl');
 const { authMiddleware, isAdmin } = require('../middlewares/authMiddleware');
 const router = express.Router();
 
@@ -17,7 +17,8 @@ router.post('/cart/cash-order', authMiddleware, createOrder);
 router.get('/wishlist', authMiddleware, getWishlist);
 router.get('/all-users', getallUsers);
 router.get('/get-orders', authMiddleware, getOrders); // Gets first order from individual
-// router.get('/get-order/:id', authMiddleware, getOrder);
+router.get('/getallorders', authMiddleware, isAdmin, getAllOrders); // Gets all orders
+router.post('/getorderbyuser/:id', authMiddleware, isAdmin, getOrderByUserId); 
 router.get("/refresh", handleRefreshToken); 
 router.get("/logout", logout)
 router.get('/cart', authMiddleware, getUserCart);

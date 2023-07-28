@@ -13,13 +13,16 @@ const brandRouter = require('./routes/brandRoute');
 const colorRouter = require('./routes/colorRoute');
 const couponRouter = require('./routes/couponRoute');
 const enqRouter = require('./routes/enqRoute');
+const uploadRouter = require('./routes/uploadRoute');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 const cookieParser = require("cookie-parser");
 const morgan = require('morgan');
+const cors = require('cors');
 dbConnect();
 
 // All of the Libraries/Modules being used
 app.use(morgan('dev'));
+app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -34,6 +37,7 @@ app.use('/api/brand', brandRouter);
 app.use('/api/color', colorRouter);
 app.use('/api/coupon', couponRouter);
 app.use('/api/enquiry', enqRouter);
+app.use('/api/upload', uploadRouter);
 
 // Middlewares
 app.use(notFound);
@@ -43,4 +47,4 @@ app.listen (PORT, () => {
     console.log(`Server is running at PORT ${PORT}`);
 }) 
 
-// npm i bcrypt body-parser cloudinary cookie-parser cors dotenv express express-async-handler jsonwebtoken mongoose morgan multer nodemailer sharp sligify uniqid
+// npm i bcrypt body-parser cloudinary cookie-parser cors dotenv express express-async-handler jsonwebtoken mongoose morgan multer nodemailer sharp slugify uniqid

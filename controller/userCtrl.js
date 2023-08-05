@@ -144,7 +144,7 @@ const updatedUser = asyncHandler(async (req, res) => {
             firstname: req?.body?.firstname,
             lastname: req?.body?.lastname,
             email: req?.body?.email,
-            mobile: req?.body?.mobile
+            mobile: req?.body?.mobile,
         },
         {
             new: true,
@@ -276,7 +276,7 @@ const forgotPasswordToken = asyncHandler (async (req, res) => {
     try {
         const token = await user.createPasswordResetToken();
         await user.save();
-        const resetURL = `Hi, Please follow this link to reset Your Password. This link is valid for 10 minute from now. <a href='http://localhost:8000/api/user/reset-password/${token}'>Click Here</a>`
+        const resetURL = `Hi, Please follow this link to reset Your Password. This link is valid for 10 minute from now. <a href='http://localhost:3000/reset-password/${token}'>Click Here</a>`
         const data = {
             to: email,
             test:"Hey User",
@@ -320,36 +320,18 @@ const getWishlist = asyncHandler(async(req, res) => {
 // User Cart Functionality
 
 const userCart = asyncHandler(async(req, res) => {
-    const { cart } = req.body;
+    const { productId, color, quantity, price } = req.body;
     const { _id } = req.user;
     validateMongoDbId(_id);
     try {
-        let products = [];
-        const user = await User.findById(_id);
-        // Check if User already have products in Cart
-        const alreadyExistsCart = await Cart.findOne({ orderby: user._id})
-        if (alreadyExistsCart) {
-            alreadyExistsCart.remove();
-        }
-        for (let i = 0; i < cart.length; i++) {
-            let object = {};
-            object.product = cart[i]._id;
-            object.count = cart[i].count;
-            object.color = cart[i].color;
-            let getPrice = await Product.findById(cart[i]._id).select("price").exec();
-            object.price = getPrice.price;
-            products.push(object);
-        }
-        let cartTotal = 0;
-        for (let i  = 0; i < products.length; i++) {
-            cartTotal = cartTotal + products[i].price * products[i].count;
-        }
         let newCart = await new Cart({
-            products,
-            cartTotal,
-            orderedby: user?._id, 
+            userId: _id,
+            productId,
+            color,
+            price,
+            quantity
         }).save();
-        res.json(newCart)
+        res.json(newCart);
     } catch (error) {
         throw new Error(error);
     }
@@ -359,151 +341,172 @@ const getUserCart = asyncHandler(async (req, res) => {
     const { _id } = req.user;
     validateMongoDbId(_id);
     try {
-    const cart = await Cart.findOne({ orderedby: _id }).populate("products.product");
+    const cart = await Cart.find({ userId: _id }).populate("productId").populate("color");
         res.json(cart); 
     } catch (error) {
         throw new Error(error);
     }
 });
+
+const removeProductFromCart = asyncHandler(async (req, res) => {
+    const { _id } = req.user;
+    const { cartItemId } = req.params;
+    validateMongoDbId(_id);
+    try {
+        const deleteProductFromCart = await Cart.deleteOne({userId: _id, _id: cartItemId});
+        res.json(deleteProductFromCart); 
+    } catch (error) {
+        throw new Error(error);
+    }
+})
+
+const updateProductQuantityFromCart = asyncHandler(async (req, res) => {
+    const { _id } = req.user;
+    const { cartItemId, newQuantity } = req.params;
+    validateMongoDbId(_id);
+    try {
+        const cartItem = await Cart.findOne({userId: _id, _id: cartItemId});
+        cartItem.quantity = newQuantity;
+        cartItem.save();
+        res.json(cartItem); 
+    } catch (error) {
+        throw new Error(error);
+    }
+})
 
 const emptyCart = asyncHandler(async (req, res) => {
     const { _id } = req.user;
+    console.log(_id);
     validateMongoDbId(_id);
     try {
-        const user = await User.findOne({ _id });
-        const cart = await Cart.findOneAndRemove({ orderby: user._id })
-        res.json(cart); 
+        const deleteCart = await Cart.deleteMany({userId: _id});
+        res.json(deleteCart); 
     } catch (error) {
         throw new Error(error);
     }
-});
-
-const applyCoupon = asyncHandler(async (req, res) => {
-    const { coupon } = req.body;
-    const { _id } = req.user;
-    validateMongoDbId(_id);
-
-    const validCoupon = await Coupon.findOne({ name: coupon });
-    if(validCoupon === null) {
-        throw new Error(" Invalid Coupon");
-    }
-    const user = await User.findOne({ _id });
-    let { products, cartTotal } = await Cart.findOne({ orderedby: user._id }).populate("products.product");
-    let totalAfterDiscount = (cartTotal - (cartTotal * validCoupon.discount/100).toFixed(2));
-    await Cart.findOneAndUpdate({ orderedby: user._id}, {totalAfterDiscount}, {new: true});
-    res.json(totalAfterDiscount);
-});
+})
 
 const createOrder = asyncHandler(async (req, res) => {
-    const { COD, couponApplied } = req.body;
+    const { shippingInfo, orderItems, totalPrice, totalPriceAfterDiscount, paymentInfo } = req.body;
     const { _id } = req.user;
-    validateMongoDbId(_id);
     try {
-        if (!COD) throw new Error("Create cash order failed.");
-        const user = await User.findById(_id);
-        let userCart = await Cart.findOne({ orderby: user._id });
-        let finalAmount = 0;
-        if (couponApplied && userCart.totalAfterDiscount) {
-            finalAmount = userCart.totalAfterDiscount;
-        } else {
-            finalAmount = userCart.cartTotal;
-        }
-        let newOrder = await new Order({
-            products: userCart.products,
-            paymentMethod: {
-                id: uniqid(),
-                method: "COD",
-                amount: finalAmount,
-                status: "Cash on Delivery",
-                created: Date.now(),
-                currency: "USD",
-            },
-            orderedby: user._id,
-            orderStatus: "Cash on Delivery",
-        }).save();
-        let update = userCart.products.map((item) => {
-            return {
-                updateOne: {
-                    filter: { _id: item.product._id},
-                    update: { $inc: { quantity: -item.count, sold: +item.count } }
-                },
-            };
-        });
-        const updated = await Product.bulkWrite(update, {});
-        res.json({ message: "success" });
+        const order = await Order.create({
+            shippingInfo, orderItems, totalPrice, totalPriceAfterDiscount, paymentInfo, user:_id
+        })
+        res.json({
+            order, 
+            success: true
+        })
     } catch (error) {
         throw new Error(error);
     }
-});
+})
 
-// Gets all orders
-const getAllOrders = asyncHandler(async (req, res) => {
-    try {
-        const allOrders = await Order.find().populate('products.product').populate("orderedby").exec(); // Updated from findOne to Find to get all orders
-        res.json(allOrders);
-    } catch (error) {
-        throw new Error(error);
-    }
-});
-
-// Gets all orders
-const getOrderByUserId = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    validateMongoDbId(id);
-    try {
-        const userOrders = await Order.findOne({ orderby: id}).populate('products.product').populate("orderedby").exec();
-        res.json(userOrders);
-    } catch (error) {
-        throw new Error(error);
-    }
-});
-
-const getOrders = asyncHandler(async (req, res) => {
+const getMyOrders = asyncHandler(async(req, res) => {
     const { _id } = req.user;
-    validateMongoDbId(_id);
+
     try {
-        const userOrders = await Order.findOne({ orderby: _id}).populate('products.product').populate("orderedby").exec();
-        res.json(userOrders);
+        const orders = await Order.find({user: _id}).populate("user").populate("orderItems.product").populate("orderItems.color");
+        res.json({
+            orders
+        })
     } catch (error) {
-        throw new Error(error);
+        throw new Error(error)
     }
-});
+})
 
-// Gets One Order made by individual
-
-// const getOrder = asyncHandler(async (req, res) => {
-//     const { _id } = req.user;
-//     const { id } = req.params;
-//     validateMongoDbId(_id);
-//     try {
-//         const userOrder = await Order.findOne({orderby: _id, _id: id}).populate('products.product').exec(); // Updated from findOne to Find to get all orders
-//         res.json(userOrder);
-//     } catch (error) {
-//         throw new Error(error);
-//     }
-// });
-
-// Update an Payment Method
-const updateOrderStatus = asyncHandler(async (req, res) => {
-    const { status } = req.body;
-    const { id } = req.params;
-    validateMongoDbId(id);
+const getAllOrders = asyncHandler(async(req, res) => {
     try {
-        const updateOrderStatus = await Order.findByIdAndUpdate(
-            id, 
-            {
-                orderStatus: status, 
-                paymentMethod: {
-                    status: status,
-                },
-            }, {
-                new: true,
+        const orders = await Order.find().populate("user").populate("orderItems.product").populate("orderItems.color");
+        res.json({
+            orders
+        })
+    } catch (error) {
+        throw new Error(error)
+    }
+})
+
+const getSingleOrder = asyncHandler(async(req, res) => {
+    const { id } = req.params;
+    try {
+        const orders = await Order.findOne({_id: id}).populate("user").populate("orderItems.product").populate("orderItems.color");
+        res.json({
+            orders
+        })
+    } catch (error) {
+        throw new Error(error)
+    }
+})
+
+const updateOrder = asyncHandler(async(req, res) => {
+    const { id } = req.params;
+    try {
+        const orders = await Order.findById(id);
+        orders.orderStatus = req.body.status;
+        await orders.save();
+        res.json({
+            orders
+        })
+    } catch (error) {
+        throw new Error(error)
+    }
+})
+
+const getMonthWiseOrderIncome = asyncHandler (async (req, res) => {
+    let monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    let d = new Date();
+    let endDate = "";
+    d.setDate(1);
+    for (let index = 0; index < 11; index++) {
+        d.setMonth(d.getMonth() - 1)
+        endDate = monthNames[d.getMonth()] + " " + d.getFullYear()
+    }
+    const data = await Order.aggregate([
+        {
+            $match: {
+                createdAt: {
+                    $lte: new Date(),
+                    $gte: new Date(endDate)
+                }
             }
-        );
-        res.json(updateOrderStatus);
-    } catch (error) {
-        throw new Error(error);
+        }, {
+            $group: {
+                _id: {
+                    month: "$month"
+                }, amount:{$sum:"$totalPriceAfterDiscount"},
+                count: {$sum: 1}
+            }
+        } 
+    ])
+    res.json(data)
+})
+
+const getYearlyTotalOrders = asyncHandler (async (req, res) => {
+    let monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    let d = new Date();
+    let endDate = "";
+    d.setDate(1);
+    for (let index = 0; index < 11; index++) {
+        d.setMonth(d.getMonth() - 1)
+        endDate = monthNames[d.getMonth()] + " " + d.getFullYear()
     }
+    const data = await Order.aggregate([
+        {
+            $match: {
+                createdAt: {
+                    $lte: new Date(),
+                    $gte: new Date(endDate)
+                }
+            }
+        }, {
+            $group: {
+                _id: null,
+                count: {$sum: 1},
+                amount: {$sum: "$totalPriceAfterDiscount"}
+            }
+        }
+    ])
+    res.json(data)
 })
 
 module.exports = { 
@@ -525,13 +528,17 @@ module.exports = {
     saveAddress,
     userCart,
     getUserCart,
-    emptyCart,
-    applyCoupon,
+    removeProductFromCart,
+    updateProductQuantityFromCart,
     createOrder,
+    getMyOrders,
+    getMonthWiseOrderIncome,
+    getYearlyTotalOrders,
     getAllOrders,
-    getOrderByUserId,
-    getOrders,
-    updateOrderStatus,
+    getSingleOrder,
+    updateOrder,
+    emptyCart,
+
 };
 
 

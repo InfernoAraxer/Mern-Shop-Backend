@@ -45,7 +45,10 @@ var productSchema = new mongoose.Schema({
             url: String,
         },
     ], // When creating a product with images, you have to add the public_id/asset_id to it so they are connected
-    color: [],
+    color: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Color",
+    }],
     tags: String,
     ratings:[
         {
@@ -55,7 +58,7 @@ var productSchema = new mongoose.Schema({
         },
     ],
     totalrating: {
-        type: String,
+        type: Number,
         default: 0,
     }, 
     },

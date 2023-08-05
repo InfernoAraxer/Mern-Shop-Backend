@@ -1,7 +1,6 @@
 const express = require('express');
 const { createProduct, getaProduct, getAllProducts, updateProduct, deleteProduct, addToWishlist, rating } = require("../controller/productCtrl");
 const { isAdmin, authMiddleware} = require("../middlewares/authMiddleware");
-const { uploadPhoto, productImgResize } = require('../middlewares/uploadImages');
 const router = express.Router();
 
 router.post("/", authMiddleware, isAdmin, createProduct);
